@@ -53,6 +53,7 @@ public class Coordinator {
         producer.flush();
 
         //TODO MAKNI
+        /*
         System.out.println("Press Enter to send the \"Register\" message...");
         System.in.read();
         JSONObject registrationJson = new JSONObject();
@@ -61,6 +62,7 @@ public class Coordinator {
         registrationJson.put("port", "6969");
 
         producer.send(new ProducerRecord<>(TOPIC_REGISTER, registrationJson.toString()));
+        */
 
         //Ceka na slanje Stop poruke
         System.out.println("Press Enter to send the \"Stop\" message...");

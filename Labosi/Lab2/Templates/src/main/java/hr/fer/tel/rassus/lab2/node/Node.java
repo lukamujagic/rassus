@@ -1,5 +1,10 @@
 package hr.fer.tel.rassus.lab2.node;
 
+import hr.fer.tel.rassus.lab2.data.CsvReader;
+import hr.fer.tel.rassus.lab2.data.DataManager;
+import hr.fer.tel.rassus.lab2.network.EmulatedSystemClock;
+import hr.fer.tel.rassus.lab2.udp.UDPClient;
+import hr.fer.tel.rassus.lab2.udp.UDPServer;
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
@@ -16,30 +21,42 @@ import org.json.JSONObject;
 import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.random.RandomGenerator;
 
 public class Node {
 
     private static final String TOPIC_REGISTER = "Register";
     private static final String TOPIC_COMMAND = "Command";
-    private static final int MINIMUM_REGISTERED_NODES = 3;
+    private static final String CSV_FILENAME = "readings.csv";
+    private static final int MINIMUM_REGISTERED_NODES = 5;
     private static final long MAX_WAIT_TIME_MS = 3000;
     private static final List<NodeInfo> registeredNodes = new ArrayList<>();
 
-    private static boolean stopMessage = false;
+    private static volatile boolean stopMessage = false;
 
     public static void main(String[] args){
+        Scanner scanner = new Scanner(System.in);
         //TODO: change to user input for ID and UDP port
-        final String id = UUID.randomUUID().toString();
+        System.out.println("Enter Node ID: ");
+        final String id = scanner.nextLine();
+
+        System.out.println("Enter UDP port number: ");
+        final int port = scanner.nextInt();
+
+        scanner.close();
+
         final String address = "localhost";
-        final String port = "9092";
+        final int kafkaPort = 9092;
 
+        EmulatedSystemClock clock = new EmulatedSystemClock();
+        DataManager dataManager = new DataManager();
+        CsvReader csvReader = new CsvReader(CSV_FILENAME, dataManager, clock);
 
-
-        Consumer<String, String> consumer = createConsumer(id, address, port);
+        Consumer<String, String> consumer = createConsumer(id, address, kafkaPort);
         consumer.subscribe(Arrays.asList(TOPIC_COMMAND, TOPIC_REGISTER));
 
         //Postavke producera
-        Producer<String, String> producer = createProducer(address, port);
+        Producer<String, String> producer = createProducer(address, kafkaPort);
 
         System.out.println("Waiting for command message to arrive...");
 
@@ -47,12 +64,12 @@ public class Node {
             ConsumerRecords<String, String> records = consumer.poll(Duration.ofMillis(1000));
 
             records.forEach(record -> {
-               if (record.topic().equals(TOPIC_COMMAND)) {
-                   handleCommandMessage(record.value(), producer, consumer, id, address, port);
-               }
-               else if (record.topic().equals(TOPIC_REGISTER)){
-                   handleRegisterMessage(record.value());
-               }
+                if (record.topic().equals(TOPIC_COMMAND)) {
+                    handleCommandMessage(record.value(), producer, consumer, id, address, port);
+                }
+                else if (record.topic().equals(TOPIC_REGISTER)){
+                    handleRegisterMessage(record.value());
+                }
             });
 
             if(registeredNodes.size() >= MINIMUM_REGISTERED_NODES) {
@@ -75,21 +92,65 @@ public class Node {
             }
         }
 
-        //Jedan thread za kalkulacije s primljenim podacima
-        ScheduledExecutorService scheduledExecutorService = Executors.newSingleThreadScheduledExecutor();
+        //Jedan scheduled thread za kalkulacije s primljenim podacima
         //Dva threada - jedan za UDP slanje, jedan za UDP listen
+        ScheduledExecutorService scheduledExecutorService = Executors.newSingleThreadScheduledExecutor();
         ExecutorService executorService = Executors.newFixedThreadPool(2);
 
         long startTime = System.currentTimeMillis();
 
+        //Kalkulacije
         scheduledExecutorService.scheduleAtFixedRate(() -> {
-                    System.out.println("[" + (System.currentTimeMillis() - startTime) + "]" + " Racunam...");
+                try{
+                    Map<Long, Integer> accumulatedData = dataManager.accumulateData();
+                    System.out.println("Data: " + accumulatedData);
+                    System.out.println("Average: " + dataManager.calculateAverage(accumulatedData));
 
                     if (Thread.interrupted()){
                         System.out.println("Kalkulacije interrupted...");
                     }
-                },
+                } catch (Throwable e) {
+                    e.printStackTrace();
+                }
+            },
                 5, 5, TimeUnit.SECONDS);
+
+        //UDP listen
+        executorService.submit(() -> {
+            try{
+                UDPServer udpServer = new UDPServer(clock, dataManager, port);
+
+                while(!stopMessage){
+                    udpServer.listen();
+                }
+                udpServer.shutdown();
+            } catch (Throwable e) {
+                e.printStackTrace();
+            }
+        });
+
+        //UDP send
+        executorService.submit(() -> {
+            try{
+                UDPClient udpClient = new UDPClient(csvReader, clock);
+
+                while(!stopMessage){
+                    registeredNodes.forEach(nodeInfo -> {
+                        //Ne saljemo sami sebi
+                        if(stopMessage) return;
+                        if(!Objects.equals(nodeInfo.id, id)){
+                            udpClient.send(nodeInfo.address, nodeInfo.port);
+                        }
+                    });
+                }
+                udpClient.shutdown();
+            } catch (Throwable e) {
+                e.printStackTrace();
+            }
+
+        });
+
+
 
         //Pracenje Command topica za Stop naredbu
         while(true) {
@@ -110,7 +171,7 @@ public class Node {
                         executorService.shutdown();
 
                         try {
-                            if(scheduledExecutorService.awaitTermination(6, TimeUnit.SECONDS)){
+                            if(scheduledExecutorService.awaitTermination(10, TimeUnit.SECONDS)){
                                 System.out.println("Kalkulacije uspjesno prekinute.");
                             }
                             else {
@@ -122,7 +183,7 @@ public class Node {
                         }
 
                         try {
-                            if(executorService.awaitTermination(3, TimeUnit.SECONDS)){
+                            if(executorService.awaitTermination(10, TimeUnit.SECONDS)){
                                 System.out.println("UDP komunikacija uspjesno prekinuta.");
                             }
                             else {
@@ -135,6 +196,12 @@ public class Node {
 
                         System.out.println("Stopped.");
 
+                        System.out.println("Final results:");
+                        System.out.println("Data: " + dataManager.getAccumulatedData());
+                        System.out.println("Size: " + dataManager.getAccumulatedData().size());
+                        System.out.println("Average: " + dataManager.calculateAccumulatedAverage());
+
+
                         //TODO: mozda hook umjesto ovoga?
                         System.exit(0);
                     }
@@ -143,7 +210,7 @@ public class Node {
         }
     }
 
-    private static Consumer<String, String> createConsumer(String id, String address, String port) {
+    private static Consumer<String, String> createConsumer(String id, String address, int port) {
         Properties consumerProperties = new Properties();
         consumerProperties.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, address + ":" + port);
         consumerProperties.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
@@ -155,7 +222,7 @@ public class Node {
         return new KafkaConsumer<>(consumerProperties);
     }
 
-    private static Producer<String, String> createProducer(String address, String port) {
+    private static Producer<String, String> createProducer(String address, int port) {
         Properties producerProperties = new Properties();
         producerProperties.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, address + ":" + port);
         producerProperties.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
@@ -165,7 +232,7 @@ public class Node {
     }
 
     private static void handleCommandMessage(String command, Producer<String, String> producer, Consumer<String,
-            String> consumer, String id, String address, String port){
+            String> consumer, String id, String address, int port){
         System.out.println("Received command: " + command);
         if(command.equals("Start")){
             sendRegistrationMessage(producer, id, address, port);
@@ -182,7 +249,7 @@ public class Node {
             JSONObject jsonObject = new JSONObject(registerMessage);
             String id = jsonObject.getString("id");
             String address = jsonObject.getString("address");
-            String port = jsonObject.getString("port");
+            Integer port = jsonObject.getInt("port");
 
             registeredNodes.add(new NodeInfo(id, address, port));
 
@@ -192,12 +259,14 @@ public class Node {
         }
     }
 
-    private static void sendRegistrationMessage(Producer<String, String> producer, String id, String address, String port) {
+    private static void sendRegistrationMessage(Producer<String, String> producer, String id, String address, int port) {
         try {
             JSONObject registrationJson = new JSONObject();
             registrationJson.put("id", id);
             registrationJson.put("address", address);
             registrationJson.put("port", port);
+
+            System.out.println("Registering: " + registrationJson);
 
             producer.send(new ProducerRecord<>(TOPIC_REGISTER, registrationJson.toString()));
         } catch (JSONException e){
@@ -205,15 +274,15 @@ public class Node {
         }
     }
 
-    record NodeInfo(String id, String address, String port) {}
+    record NodeInfo(String id, String address, Integer port) {}
 
     /*
     static final class NodeInfo {
         private final String id;
         private final String address;
-        private final String port;
+        private final Integer port;
 
-        public NodeInfo(String id, String address, String port){
+        public NodeInfo(String id, String address, Integer port){
             this.id = id;
             this.address = address;
             this.port = port;
@@ -226,7 +295,7 @@ public class Node {
             return address;
         }
 
-        public String getPort() {
+        public Integer getPort() {
             return port;
         }
     }
