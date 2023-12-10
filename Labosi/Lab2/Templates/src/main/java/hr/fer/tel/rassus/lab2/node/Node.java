@@ -15,6 +15,7 @@ import org.json.JSONObject;
 
 import java.time.Duration;
 import java.util.*;
+import java.util.concurrent.*;
 
 public class Node {
 
@@ -24,11 +25,15 @@ public class Node {
     private static final long MAX_WAIT_TIME_MS = 3000;
     private static final List<NodeInfo> registeredNodes = new ArrayList<>();
 
+    private static boolean stopMessage = false;
+
     public static void main(String[] args){
         //TODO: change to user input for ID and UDP port
         final String id = UUID.randomUUID().toString();
         final String address = "localhost";
         final String port = "9092";
+
+
 
         Consumer<String, String> consumer = createConsumer(id, address, port);
         consumer.subscribe(Arrays.asList(TOPIC_COMMAND, TOPIC_REGISTER));
@@ -51,6 +56,7 @@ public class Node {
             });
 
             if(registeredNodes.size() >= MINIMUM_REGISTERED_NODES) {
+                System.out.println("Received minimum number of registrations, waiting for additional...");
                 long startTime = System.currentTimeMillis();
 
                 while(System.currentTimeMillis() - startTime < MAX_WAIT_TIME_MS){
@@ -65,7 +71,75 @@ public class Node {
                 }
 
                 System.out.println("Total registered nodes: " + registeredNodes.size());
+                break;
             }
+        }
+
+        //Jedan thread za kalkulacije s primljenim podacima
+        ScheduledExecutorService scheduledExecutorService = Executors.newSingleThreadScheduledExecutor();
+        //Dva threada - jedan za UDP slanje, jedan za UDP listen
+        ExecutorService executorService = Executors.newFixedThreadPool(2);
+
+        long startTime = System.currentTimeMillis();
+
+        scheduledExecutorService.scheduleAtFixedRate(() -> {
+                    System.out.println("[" + (System.currentTimeMillis() - startTime) + "]" + " Racunam...");
+
+                    if (Thread.interrupted()){
+                        System.out.println("Kalkulacije interrupted...");
+                    }
+                },
+                5, 5, TimeUnit.SECONDS);
+
+        //Pracenje Command topica za Stop naredbu
+        while(true) {
+            ConsumerRecords<String, String> records = consumer.poll(Duration.ofMillis(1000));
+
+            records.forEach(record -> {
+                if (record.topic().equals(TOPIC_COMMAND)) {
+                    handleCommandMessage(record.value(), producer, consumer, id, address, port);
+
+                    if(stopMessage) {
+                        System.out.println("Stopping...");
+                        producer.flush();
+                        producer.close();
+                        consumer.commitSync();
+                        consumer.unsubscribe();
+                        consumer.close();
+                        scheduledExecutorService.shutdown();
+                        executorService.shutdown();
+
+                        try {
+                            if(scheduledExecutorService.awaitTermination(6, TimeUnit.SECONDS)){
+                                System.out.println("Kalkulacije uspjesno prekinute.");
+                            }
+                            else {
+                                System.out.println("Force shutdown kalkulacije.");
+                                scheduledExecutorService.shutdownNow();
+                            }
+                        } catch (InterruptedException e) {
+                            throw new RuntimeException(e);
+                        }
+
+                        try {
+                            if(executorService.awaitTermination(3, TimeUnit.SECONDS)){
+                                System.out.println("UDP komunikacija uspjesno prekinuta.");
+                            }
+                            else {
+                                System.out.println("Force shutdown UDP komunikacija.");
+                                executorService.shutdownNow();
+                            }
+                        } catch (InterruptedException e) {
+                            throw new RuntimeException(e);
+                        }
+
+                        System.out.println("Stopped.");
+
+                        //TODO: mozda hook umjesto ovoga?
+                        System.exit(0);
+                    }
+                }
+            });
         }
     }
 
@@ -98,16 +172,7 @@ public class Node {
             //blabla
         }
         else if(command.equals("Stop")){
-            System.out.println("Stopping...");
-            producer.flush();
-            producer.close();
-            consumer.commitSync();
-            consumer.unsubscribe();
-            consumer.close();
-            System.out.println("Stopped.");
-
-            //TODO: mozda hook umjesto ovoga?
-            System.exit(0);
+            stopMessage = true;
         }
     }
 
