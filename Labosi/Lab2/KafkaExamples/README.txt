@@ -1,0 +1,1 @@
+Upute za pokretanje Kafka servera i Zookeepera nalaze se u tekstu 2. laboratorijske vježbe.
