@@ -17,16 +17,12 @@ public class DataManager {
     public void addReceivedData(String data){
         String[] splitData = data.split(",");
 
-        System.out.println("received Before " + splitData[0]);
-
         long millis;
         try{
             millis = Long.parseLong(splitData[0]);
         } catch (NumberFormatException e){
             millis = 0L;
         }
-
-        System.out.println("received After " + millis);
 
         Integer no2Value;
         try{

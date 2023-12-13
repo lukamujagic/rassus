@@ -27,7 +27,7 @@ public class Node {
     private static final String TOPIC_REGISTER = "Register";
     private static final String TOPIC_COMMAND = "Command";
     private static final String CSV_FILENAME = "readings.csv";
-    private static final int MINIMUM_REGISTERED_NODES = 5;
+    private static final int MINIMUM_REGISTERED_NODES = 3;
     private static final long MAX_WAIT_TIME_MS = 3000;
     private static final List<NodeInfo> registeredNodes = new ArrayList<>();
 
