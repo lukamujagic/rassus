@@ -15,13 +15,25 @@
       <ProjectState />
     </projectState>
   </component>
+  <component name="ExternalProjectsManager">
+    <system id="GRADLE">
+      <state>
+        <projects_view>
+          <tree_state>
+            <expand />
+            <select />
+          </tree_state>
+        </projects_view>
+      </state>
+    </system>
+  </component>
   <component name="MarkdownSettingsMigration">
     <option name="stateVersion" value="1" />
   </component>
-  <component name="ProjectColorInfo"><![CDATA[{
-  "customColor": "",
-  "associatedIndex": 2
-}]]></component>
+  <component name="ProjectColorInfo">{
+  &quot;customColor&quot;: &quot;&quot;,
+  &quot;associatedIndex&quot;: 2
+}</component>
   <component name="ProjectId" id="2ZJL5aULCAZyfTg9H3H3fNxRX3w" />
   <component name="ProjectViewState">
     <option name="hideEmptyMiddlePackages" value="true" />
@@ -33,7 +45,7 @@
     "RunOnceActivity.ShowReadmeOnStart": "true",
     "WebServerToolWindowFactoryState": "false",
     "android.gradle.sync.needed": "true",
-    "last_opened_file_path": "D:/FAKS/Diplomski/Semestar3/RASSUS/Labosi/Lab2/Templates",
+    "last_opened_file_path": "D:/FAKS/Diplomski/Semestar3/RASSUS/Labosi/Lab3",
     "vue.rearranger.settings.migration": "true"
   }
 }]]></component>
@@ -46,6 +58,7 @@
       <option name="presentableId" value="Default" />
       <updated>1702135055198</updated>
       <workItem from="1702135056754" duration="82000" />
+      <workItem from="1705040627083" duration="5000" />
     </task>
     <servers />
   </component>
