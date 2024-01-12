@@ -1,5 +1,6 @@
 package hr.fer.tel.rassus.aggregationmicroservice;
 
+import com.netflix.discovery.EurekaClient;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
@@ -18,8 +19,10 @@ public class AggregationController {
     private AggregationConfig aggregationConfig = new AggregationConfig();
     private final RestTemplate restTemplate;
 
-    private final String temperatureURL = "http://localhost:1234";
-    private final String humidityURL = "http://localhost:1235";
+    private EurekaClient discoveryClient;
+
+    private final String temperatureURL = "http://temperature-microservice";
+    private final String humidityURL = "http://humidity-microservice";
 
     public AggregationController(RestTemplate restTemplate){
         this.restTemplate = restTemplate;
@@ -36,7 +39,6 @@ public class AggregationController {
 
         assert temperatureData != null;
         if(temperatureData.value() != null){
-            System.out.println("Unit " + aggregationConfig.getTemperatureUnit());
             if(Objects.equals(aggregationConfig.getTemperatureUnit(), "kelvin")){
                 aggregatedData.add(new Data(temperatureData.name(), "K", temperatureData.value()+273.15));
             }
