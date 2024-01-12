@@ -4,13 +4,13 @@ import jakarta.annotation.PostConstruct;
 import lombok.Getter;
 import lombok.Setter;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.cloud.context.config.annotation.RefreshScope;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Scope;
-import org.springframework.stereotype.Component;
 
 @Getter
 @Configuration
-@Component
+@RefreshScope
 @Scope("singleton")
 public class AggregationConfig {
     @Value("${temperature.unit}")
