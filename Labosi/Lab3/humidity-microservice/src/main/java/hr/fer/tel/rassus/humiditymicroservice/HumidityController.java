@@ -11,7 +11,7 @@ import java.time.Instant;
 @RestController
 public class HumidityController {
 
-    private final HumidityService humidityService = new HumidityService();
+    private final HumidityService humidityService = new HumidityService((new HumidityDatabaseConfig()).dataSource());
 
     private final Instant startTime = Instant.now();
 

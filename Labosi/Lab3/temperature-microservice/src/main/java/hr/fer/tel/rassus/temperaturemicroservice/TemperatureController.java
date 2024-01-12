@@ -8,7 +8,7 @@ import java.time.Instant;
 
 @RestController
 public class TemperatureController {
-    private final TemperatureService temperatureService = new TemperatureService();
+    private final TemperatureService temperatureService = new TemperatureService((new TemperatureDatabaseConfig()).dataSource());
 
     private final Instant startTime = Instant.now();
 

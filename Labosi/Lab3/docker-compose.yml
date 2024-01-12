@@ -1,0 +1,36 @@
+version: '3.8'
+
+services:
+  aggregation-microservice:
+    image: rassus/aggregation-microservice
+    ports:
+      - "1236:1236"
+    depends_on:
+      - registration-server
+      - configuration-server
+
+  configuration-server:
+    image: rassus/configuration-server
+    ports:
+      - "8888:8888"
+
+  humidity-microservice:
+    image: rassus/humidity-microservice
+    ports:
+      - "1235:1235"
+    depends_on:
+      - registration-server
+      - configuration-server
+
+  registration-server:
+    image: rassus/registration-server
+    ports:
+      - "8761:8761"
+
+  temperature-microservice:
+    image: rassus/temperature-microservice
+    ports:
+      - "1234:1234"
+    depends_on:
+      - registration-server
+      - configuration-server

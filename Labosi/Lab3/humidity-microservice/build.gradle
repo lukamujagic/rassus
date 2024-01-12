@@ -28,11 +28,13 @@ ext {
 dependencies {
 	implementation 'com.opencsv:opencsv:5.9'
 	implementation 'org.springframework.boot:spring-boot-starter-web'
+	implementation 'org.springframework.boot:spring-boot-starter-jdbc'
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
 	compileOnly 'org.projectlombok:lombok'
 	annotationProcessor 'org.projectlombok:lombok'
 	implementation 'org.springframework:spring-web:6.1.2'
 	implementation 'org.springframework.cloud:spring-cloud-starter-netflix-eureka-client'
+	implementation 'org.xerial:sqlite-jdbc'
 }
 
 dependencyManagement {
